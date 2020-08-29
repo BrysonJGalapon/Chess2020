@@ -28,7 +28,7 @@ func main() {
 	makeMove(b, "e2", "e4")
 	makeMove(b, "e7", "e5")
 	makeMove(b, "g1", "f3")
-	makeMove(b, "g8", "c6")
+	makeMove(b, "b8", "c6")
 
 	makeMove(b, "d2", "d4")
 	makeMove(b, "e5", "d4")
@@ -43,5 +43,13 @@ func main() {
 	makeMove(b, "f6", "g7")
 
 	makeMoveUtil(b, "b2", "a1", chess.BlackQueen)
-	makeMoveUtil(b, "g7", "g8", chess.WhiteKnight)
+	makeMoveUtil(b, "g7", "h8", chess.WhiteKnight)
+
+	makeMove(b, "d8", "e7")
+	makeMove(b, "f1", "e2")
+	makeMove(b, "d7", "d6")
+	makeMove(b, "e1", "g1")
+	makeMove(b, "c8", "d7")
+	makeMove(b, "b1", "c3")
+	makeMove(b, "e8", "c8")
 }

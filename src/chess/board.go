@@ -141,6 +141,12 @@ func (b *Board) unsafeMoveWithCache(m *Move, c *moveCache) {
 	//      b. toPiece is one of {Q,N,B,R} of the same color as fromPiece
 	//      c. toSquare is on the 1st rank if fromPiece is black, and on the 8th rank if fromPiece is white
 	//  4. if a pawn moved up (or down) two squares, it started from its initial position
+	//  5. if a king is moved 2 squares to left or right:
+	//		a. the king has never been moved before
+	//		b. there is a rook that has never been moved in the corner of the direction of movement
+	//		c. the king is not currently in check
+	// 		d. the squares between the king and the rook are empty
+	//		e. the two squares the king is moving through are not controlled by a piece of the opposite color
 	fromPiece := *c.FromPiece
 	toPiece := *c.ToPiece
 
@@ -178,7 +184,16 @@ func (b *Board) unsafeMoveWithCache(m *Move, c *moveCache) {
 		b.EnPassent = 0
 	}
 
-	// TODO handle castling
+	switch {
+	case fromPiece == WhiteKing && fromSquare>>2 == toSquare: // white castling king-side
+		b.Pieces[WhiteRook] ^= 5
+	case fromPiece == WhiteKing && fromSquare<<2 == toSquare: // white castling queen-side
+		b.Pieces[WhiteRook] ^= 144
+	case fromPiece == BlackKing && fromSquare>>2 == toSquare: // black castling king-side
+		b.Pieces[BlackRook] ^= 360287970189639680
+	case fromPiece == BlackKing && fromSquare<<2 == toSquare: // black castling queen-side
+		b.Pieces[BlackRook] ^= 10376293541461622784
+	}
 
 	// toggle turn
 	b.Turn ^= 1
