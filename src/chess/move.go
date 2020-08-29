@@ -56,21 +56,29 @@ func (c Coordinate) toSquare() (Square, error) {
 
 // Move is a representation of a Chess move
 type Move struct {
-	From Square
-	To   Square
+	From      Square
+	To        Square
+	Promotion Piece
 }
 
 // NewMove returns a new Move from square f to square t
-func NewMove(f, t Square) *Move {
+func NewMove(f, t Square, p Piece) *Move {
 	return &Move{
-		From: f,
-		To:   t,
+		From:      f,
+		To:        t,
+		Promotion: p,
 	}
 }
 
 // NewMoveCoord returns a new Move from coordinate f to coordinate t. Returns an
 // error if Coordinate could not be parsed correctly.
 func NewMoveCoord(f, t Coordinate) (*Move, error) {
+	return NewMoveCoordPromotion(f, t, EmptyPiece)
+}
+
+// NewMoveCoordPromotion returns a new Move from coordinate f to coordinate t, promoting
+// the piece starting at f to p. Returns an error if Coordinate could not be parsed correctly.
+func NewMoveCoordPromotion(f, t Coordinate, p Piece) (*Move, error) {
 	var from Square
 	var to Square
 	var err error
@@ -83,5 +91,5 @@ func NewMoveCoord(f, t Coordinate) (*Move, error) {
 		return nil, fmt.Errorf("could not parse to coordinate: %v", err)
 	}
 
-	return NewMove(from, to), nil
+	return NewMove(from, to, p), nil
 }

@@ -42,6 +42,7 @@ func NewBoard() *Board {
 		CanWhiteCastleQueenside: true,
 		CanBlackCastleKingside:  true,
 		CanBlackCastleQueenside: true,
+		Turn:                    0,
 	}
 }
 
@@ -64,6 +65,9 @@ func (b *Board) String() string {
 	for i := 0; i < 8; i++ {
 		for j := 0; j < 8; j++ {
 			p = b.detectPiece(cursor)
+			if b.EnPassent&cursor != 0 { // ignore "invisible" pawns on EnPassent squares
+				p = EmptyPiece
+			}
 			board += p.String()
 			cursor >>= 1
 		}
@@ -75,7 +79,16 @@ func (b *Board) String() string {
 }
 
 // Returns the piece on a given square on this board. Returns nil if no piece exists on the square.
+// Returns an "invisible" pawn of the appropriate color if square is an EnPassent square.
 func (b *Board) detectPiece(square bitmap) Piece {
+	if b.EnPassent&square != 0 {
+		if b.Turn == 0 {
+			return BlackPawn
+		}
+
+		return WhitePawn
+	}
+
 	for _, pt := range AllPieceTypes {
 		if b.Pieces[pt]&square != 0 {
 			return pt
@@ -88,7 +101,7 @@ func (b *Board) detectPiece(square bitmap) Piece {
 type moveCache struct {
 	FromPiece *Piece
 	ToPiece   *Piece
-	// EnPassent *bitmap
+	EnPassent *bitmap
 }
 
 // UnsafeMove performs a move on this board without any validity checking.
@@ -110,31 +123,65 @@ func (b *Board) unsafeMoveWithCache(m *Move, c *moveCache) {
 		c.ToPiece = &x
 	}
 
-	// if c.EnPassent == nil {
-	// 	var x bitmap
-	// 	if b.EnPassent == toSquare {
-	// 		x = toSquare
-	// 	}
+	if c.EnPassent == nil {
+		var x bitmap
+		if b.EnPassent == toSquare {
+			x = toSquare
+		}
 
-	// 	c.EnPassent = &x // c.EnPassent != 0 iff EnPassent ocurred
-	// }
+		c.EnPassent = &x // c.EnPassent != 0 iff current move is EnPassent
+	}
 
 	// because validity check was skipped, assumes:
 	//  0. toSquare != fromSquare
 	//	1. fromPiece is not empty
 	// 	2. if toPiece is not empty, that toPiece is opposite color of fromPiece
+	//  3. if move is a promotion, that:
+	//      a. fromPiece is a pawn
+	//      b. toPiece is one of {Q,N,B,R} of the same color as fromPiece
+	//      c. toSquare is on the 1st rank if fromPiece is black, and on the 8th rank if fromPiece is white
+	//  4. if a pawn moved up (or down) two squares, it started from its initial position
 	fromPiece := *c.FromPiece
 	toPiece := *c.ToPiece
 
 	// moves fromPiece fromSquare -> toSquare
-	// TODO handle promotion
 	b.Pieces[fromPiece] ^= (fromSquare | toSquare)
+	if m.Promotion != EmptyPiece {
+		b.Pieces[fromPiece] ^= toSquare   // remove piece from destination square
+		b.Pieces[m.Promotion] ^= toSquare // add piece to destination square
+	}
 
 	// removes toPiece from existing square
-	// TODO handle en-passent
 	if toPiece != EmptyPiece {
-		b.Pieces[toPiece] ^= toSquare
+		var capturedSquare bitmap
+
+		capturedSquare = toSquare
+
+		if *c.EnPassent != 0 {
+			if b.Turn == 0 {
+				capturedSquare >>= 8 // captured pawn is one square below destination square
+			} else {
+				capturedSquare <<= 8 // captured pawn is one square above destination square
+			}
+		}
+
+		b.Pieces[toPiece] ^= capturedSquare
 	}
+
+	// check if EnPassent is possible
+	switch {
+	case fromPiece == WhitePawn && (fromSquare<<16 == toSquare): // white pawn moved up 2 squares
+		b.EnPassent = fromSquare << 8
+	case fromPiece == BlackPawn && (fromSquare>>16 == toSquare): // black pawn moved down 2 squares
+		b.EnPassent = fromSquare >> 8
+	default:
+		b.EnPassent = 0
+	}
+
+	// TODO handle castling
+
+	// toggle turn
+	b.Turn ^= 1
 }
 
 // UndoLastMove undos the last move played on this board.

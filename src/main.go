@@ -5,31 +5,43 @@ import (
 	"fmt"
 )
 
+func makeMove(b *chess.Board, f, t chess.Coordinate) {
+	makeMoveUtil(b, f, t, chess.EmptyPiece)
+}
+
+func makeMoveUtil(b *chess.Board, f, t chess.Coordinate, promotion chess.Piece) {
+	var m *chess.Move
+	var err error
+
+	if m, err = chess.NewMoveCoordPromotion(f, t, promotion); err != nil {
+		panic(err)
+	}
+
+	b.Move(m)
+	fmt.Println(b)
+}
+
 func main() {
 	b := chess.NewBoard()
 	fmt.Println(b)
 
-	var m *chess.Move
-	var err error
+	makeMove(b, "e2", "e4")
+	makeMove(b, "e7", "e5")
+	makeMove(b, "g1", "f3")
+	makeMove(b, "g8", "c6")
 
-	if m, err = chess.NewMoveCoord("e2", "e4"); err != nil {
-		panic(err)
-	}
+	makeMove(b, "d2", "d4")
+	makeMove(b, "e5", "d4")
+	makeMove(b, "c2", "c4")
+	makeMove(b, "d4", "c3")
 
-	b.Move(m)
-	fmt.Println(b)
+	makeMove(b, "e4", "e5")
+	makeMove(b, "f7", "f5")
+	makeMove(b, "e5", "f6")
 
-	if m, err = chess.NewMoveCoord("e7", "e5"); err != nil {
-		panic(err)
-	}
+	makeMove(b, "c3", "b2")
+	makeMove(b, "f6", "g7")
 
-	b.Move(m)
-	fmt.Println(b)
-
-	if m, err = chess.NewMoveCoord("g1", "f3"); err != nil {
-		panic(err)
-	}
-
-	b.Move(m)
-	fmt.Println(b)
+	makeMoveUtil(b, "b2", "a1", chess.BlackQueen)
+	makeMoveUtil(b, "g7", "g8", chess.WhiteKnight)
 }
