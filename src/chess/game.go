@@ -87,7 +87,7 @@ func (g *Game) GetTimeLeft(c Color) time.Duration {
 	}
 }
 
-func (g *Game) handleMove(c Color) error {
+func (g *Game) handleMove(c Color) (*Move, error) {
 	switch c {
 	case White:
 		ctx, cancel := context.WithTimeout(context.Background(), g.whiteTimeLeft)
@@ -99,17 +99,15 @@ func (g *Game) handleMove(c Color) error {
 
 			err := g.board.Move(&tmp)
 			if err != nil {
-				return fmt.Errorf("white made an invalid move: %v", err)
+				return nil, fmt.Errorf("white made an invalid move: %v", err)
 			}
 
 			g.whiteTimeLeft -= time.Since(g.timestamp)
 			g.whiteTimeLeft += g.timeControl.Increment()
 
-			g.promptBlack <- Prompt{&tmp}
-			g.timestamp = time.Now()
-			return nil
+			return &tmp, nil
 		case <-ctx.Done():
-			return fmt.Errorf("white ran out of time")
+			return nil, fmt.Errorf("white ran out of time")
 		}
 
 	case Black:
@@ -122,17 +120,15 @@ func (g *Game) handleMove(c Color) error {
 
 			err := g.board.Move(&tmp)
 			if err != nil {
-				return fmt.Errorf("black made an invalid move: %v", err)
+				return nil, fmt.Errorf("black made an invalid move: %v", err)
 			}
 
 			g.blackTimeLeft -= time.Since(g.timestamp)
 			g.blackTimeLeft += g.timeControl.Increment()
 
-			g.promptWhite <- Prompt{&tmp}
-			g.timestamp = time.Now()
-			return nil
+			return &tmp, nil
 		case <-ctx.Done():
-			return fmt.Errorf("black ran out of time")
+			return nil, fmt.Errorf("black ran out of time")
 		}
 	default:
 		panic("Unhandled color type")
@@ -152,38 +148,57 @@ func (g *Game) Start() {
 	g.promptWhite <- Prompt{}
 	g.timestamp = time.Now()
 
+	var m *Move
 	var err error
 
 game:
 	for {
 		// white's turn
-		err = g.handleMove(White)
+		m, err = g.handleMove(White)
 
 		switch {
 		case err != nil:
+			fmt.Println()
+			fmt.Println(g.board.String())
 			log.Printf("White lost: %v", err)
 			break game
 		case g.board.IsCheckmate():
+			fmt.Println()
+			fmt.Println(g.board.String())
 			log.Printf("White won via checkmate")
 			break game
 		case g.board.IsStalemate():
+			fmt.Println()
+			fmt.Println(g.board.String())
 			log.Printf("White drew via stalemate")
 		}
 
+		g.promptBlack <- Prompt{m}
+		g.timestamp = time.Now()
+
 		// black's turn
-		err = g.handleMove(Black)
+		m, err = g.handleMove(Black)
 
 		switch {
 		case err != nil:
+			fmt.Println()
+			fmt.Println(g.board.String())
 			log.Printf("Black lost: %v", err)
 			break game
 		case g.board.IsCheckmate():
+			fmt.Println()
+			fmt.Println(g.board.String())
 			log.Printf("Black won via checkmate")
 			break game
 		case g.board.IsStalemate():
+			fmt.Println()
+			fmt.Println(g.board.String())
 			log.Printf("Black drew via stalemate")
 			break game
 		}
+
+		g.promptWhite <- Prompt{m}
+		g.timestamp = time.Now()
 
 		// TODO cap the number of moves in a game to 200
 		// TODO handle 3-fold repetition

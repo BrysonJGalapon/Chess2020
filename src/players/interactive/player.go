@@ -123,14 +123,13 @@ func (ip *InteractivePlayer) Run() {
 		// Wait for our turn
 		p := <-ip.Prompt
 		if p.OppMove != nil {
-			// fmt.Printf("Interactive Player [%v] Opponent made move: %v\n", ip.Color, p.OppMove.String())
+			fmt.Printf("Interactive Player [%v] Opponent played: %v\n", ip.Color, p.OppMove.String())
 			ip.Board.UnsafeMove(p.OppMove)
 		}
 
 		var m *chess.Move
 		var err error
 		for {
-			fmt.Println()
 			fmt.Printf("Interactive Player [%v] to move...\n", ip.Color)
 			fmt.Println()
 			fmt.Println(ip.Board)

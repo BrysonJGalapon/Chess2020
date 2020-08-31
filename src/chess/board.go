@@ -19,6 +19,12 @@ func init() {
 	}
 }
 
+type CheckingPiece struct {
+	Piece  Piece
+	Square bitmap
+	Check  bitmap
+}
+
 type bitmap uint64
 
 func (b bitmap) Coordinates() [2]uint8 {
@@ -40,6 +46,17 @@ func (c Color) String() string {
 		return "White"
 	case Black:
 		return "Black"
+	default:
+		panic("Unhandled color type")
+	}
+}
+
+func (c Color) Opposite() Color {
+	switch c {
+	case White:
+		return Black
+	case Black:
+		return White
 	default:
 		panic("Unhandled color type")
 	}
@@ -72,9 +89,12 @@ type Board struct {
 
 	Turn Color
 
-	AllPieces      *bitmap
+	WhitePieces    *bitmap
+	BlackPieces    *bitmap
 	WhiteAttackMap *bitmap
 	BlackAttackMap *bitmap
+
+	PinnedPieces *bitmap
 }
 
 // NewBoard creates a new board, and returns it.
@@ -95,9 +115,14 @@ func (b *Board) Copy() *Board {
 	nb := *b
 
 	// Don't copy pointers
-	if b.AllPieces != nil {
-		tmp := *b.AllPieces
-		nb.AllPieces = &tmp
+	if b.WhitePieces != nil {
+		tmp := *b.WhitePieces
+		nb.WhitePieces = &tmp
+	}
+
+	if b.BlackPieces != nil {
+		tmp := *b.BlackPieces
+		nb.WhitePieces = &tmp
 	}
 
 	if b.WhiteAttackMap != nil {
@@ -301,16 +326,13 @@ func (b *Board) unsafeMoveWithCache(m *Move, c *moveCache) {
 	}
 
 	// pieces changed, reset cache
-	b.AllPieces = nil
+	b.WhitePieces = nil
+	b.BlackPieces = nil
 	b.WhiteAttackMap = nil
 	b.BlackAttackMap = nil
 
 	// toggle turn
-	if b.Turn == White {
-		b.Turn = Black
-	} else {
-		b.Turn = White
-	}
+	b.Turn = b.Turn.Opposite()
 }
 
 // UndoLastMove undos the last move played on this board.
@@ -332,11 +354,250 @@ func (b *Board) InCheck(c Color) bool {
 	return b.dynamicAttackMap(White)&b.Pieces[BlackKing] != 0
 }
 
+func (b *Board) GetPiece(c Color, pt string) Piece {
+	if c == White {
+		switch pt {
+		case "King":
+			return WhiteKing
+		case "Queen":
+			return WhiteQueen
+		case "Knight":
+			return WhiteKnight
+		case "Bishop":
+			return WhiteBishop
+		case "Rook":
+			return WhiteRook
+		case "Pawn":
+			return WhitePawn
+		default:
+			panic("Unhandled piece case")
+		}
+	}
+
+	switch pt {
+	case "King":
+		return BlackKing
+	case "Queen":
+		return BlackQueen
+	case "Knight":
+		return BlackKnight
+	case "Bishop":
+		return BlackBishop
+	case "Rook":
+		return BlackRook
+	case "Pawn":
+		return BlackPawn
+	default:
+		panic("Unhandled piece case")
+	}
+}
+
+func (b *Board) CheckingPieces() []CheckingPiece {
+	cps := make([]CheckingPiece, 0)
+
+	var pt [6]Piece
+
+	if b.Turn == White {
+		pt = BlackPieceTypes
+	} else {
+		pt = WhitePieceTypes
+	}
+
+	king := b.Pieces[b.GetPiece(b.Turn, "King")]
+	var pinned bitmap
+	var attacked bitmap = 0
+	for _, p := range pt {
+		var cursor bitmap = 1
+
+		for i := 0; i < 64; i++ {
+			// ignore empty squares
+			if cursor&b.Pieces[p] == 0 {
+				cursor <<= 1
+				continue
+			}
+
+			guide := AttackMap[p][cursor] ^ cursor
+
+			handleScan := func(cursor, guide bitmap, dirs []Direction) {
+				for _, d := range dirs {
+					att, pin := b.pseudoScan(cursor, guide, d)
+					attacked |= att
+					pinned |= pin
+
+					if king&att != 0 && pin == 0 {
+						cps = append(cps, CheckingPiece{Piece: p, Square: cursor, Check: att})
+					}
+				}
+			}
+
+			switch p {
+			case WhiteKnight, BlackKnight, WhitePawn, BlackPawn, WhiteKing, BlackKing:
+				attacked |= AttackMap[p][cursor]
+			case WhiteRook, BlackRook:
+				handleScan(cursor, guide, []Direction{N, S, E, W})
+			case WhiteBishop, BlackBishop:
+				handleScan(cursor, guide, []Direction{NE, NW, SE, SW})
+			case WhiteQueen, BlackQueen:
+				handleScan(cursor, guide, []Direction{N, S, E, W, NE, NW, SE, SW})
+			}
+
+			cursor <<= 1
+		}
+	}
+
+	b.PinnedPieces = &pinned
+
+	return cps
+}
+
+func (b *Board) pieces(c Color) bitmap {
+	if c == White {
+		return b.whitePieces()
+	}
+
+	return b.blackPieces()
+}
+
 // IsCheckmate returns true iff the position is checkmate
 func (b *Board) IsCheckmate() bool {
-	// TODO
-	return false
+	king := b.GetPiece(b.Turn, "King")
+	kingSquare := b.Pieces[king]
+	attacked := b.dynamicAttackMap(b.Turn.Opposite())
+
+	if attacked&kingSquare == 0 {
+		return false // not in check, therefore not checkmate
+	}
+
+	cps := b.CheckingPieces()
+
+	obstacles := b.pieces(b.Turn)
+	possible := AttackMap[king][kingSquare]
+
+	fmt.Printf("==== len(cps): %v\n", len(cps))
+
+	switch len(cps) {
+	case 1:
+		cp := cps[0]
+
+		// check blocks, if checking piece is not a knight
+		if cp.Piece != WhiteKnight && cp.Piece != BlackKnight {
+			if cp.Check&(b.dynamicAttackMapQueen(b.Turn)|b.dynamicAttackMapRook(b.Turn)|b.dynamicAttackMapBishop(b.Turn)|b.dynamicMovementMapPawn(b.Turn)) != 0 {
+				fmt.Println("==== I think I can block")
+				return false
+			}
+		}
+
+		// check captures, for pieces that are unpinned
+		if b.dynamicAttackMapNoPin(b.Turn)&cp.Square != 0 {
+			fmt.Println("==== I think I can capture")
+			return false
+		}
+
+		// check king moves
+		return (possible&^obstacles)&^attacked == 0 // true iff there are no possible king moves that go to a blocked or attacked square
+	case 2: // double-check, must respond with a king move
+		return (possible&^obstacles)&^attacked == 0 // true iff there are no possible king moves that go to a blocked or attacked square
+	default:
+		panic("there can never be more than 2 checking pieces")
+	}
 }
+
+func (b *Board) dynamicAttackMapQueen(c Color) bitmap {
+	switch c {
+	case White:
+		return b.attackedSquaresNoPin(WhiteQueen)
+	case Black:
+		return b.attackedSquaresNoPin(BlackQueen)
+	default:
+		panic("Unhandled color type")
+	}
+}
+
+func (b *Board) dynamicAttackMapBishop(c Color) bitmap {
+	switch c {
+	case White:
+		return b.attackedSquaresNoPin(WhiteBishop)
+	case Black:
+		return b.attackedSquaresNoPin(BlackBishop)
+	default:
+		panic("Unhandled color type")
+	}
+}
+
+func (b *Board) dynamicAttackMapRook(c Color) bitmap {
+	switch c {
+	case White:
+		return b.attackedSquaresNoPin(WhiteRook)
+	case Black:
+		return b.attackedSquaresNoPin(BlackRook)
+	default:
+		panic("Unhandled color type")
+	}
+}
+
+func (b *Board) dynamicMovementMapPawn(c Color) bitmap {
+	var p Piece
+	var d Direction
+
+	if c == White {
+		p = WhitePawn
+		d = N
+	} else {
+		p = BlackPawn
+		d = S
+	}
+
+	pinned := b.pinnedPieces()
+
+	var cursor bitmap = 1
+	var m bitmap
+
+	for i := 0; i < 64; i++ {
+		// ignore empty squares
+		if cursor&b.Pieces[p] == 0 {
+			cursor <<= 1
+			continue
+		}
+
+		// ignore pinned pawns
+		if cursor&pinned != 0 {
+			cursor <<= 1
+			continue
+		}
+
+		m |= (b.scan(cursor, MoveMap[p][cursor]^cursor, d)) &^ b.allPieces()
+
+		cursor <<= 1
+	}
+
+	return m
+}
+
+// // IsCheckmate returns true iff the position is checkmate
+// func (b *Board) IsCheckmate() bool {
+// 	var king Piece
+// 	var attacked bitmap
+// 	var obstacles bitmap
+
+// 	switch b.Turn {
+// 	case White:
+// 		king = WhiteKing
+// 		attacked = b.dynamicAttackMap(Black)
+// 		obstacles = b.whitePieces()
+// 	case Black:
+// 		king = BlackKing
+// 		attacked = b.dynamicAttackMap(White)
+// 		obstacles = b.blackPieces()
+// 	default:
+// 		panic("Unhandled turn case")
+// 	}
+
+// 	square := b.Pieces[king]
+// 	possible := AttackMap[king][square]
+
+// 	// in check, and all possible movement squares are empty
+// 	return square&attacked != 0 && (possible&^obstacles)&^attacked == 0
+// }
 
 // IsStalemate returns true iff the position is stalemate
 func (b *Board) IsStalemate() bool {
@@ -375,6 +636,37 @@ func (b *Board) dynamicAttackMap(c Color) bitmap {
 	}
 }
 
+func (b *Board) dynamicAttackMapNoPin(c Color) bitmap {
+	switch c {
+	case White:
+		if b.WhiteAttackMap != nil {
+			return *b.WhiteAttackMap
+		}
+
+		var dam bitmap = 0
+		for _, p := range WhitePieceTypes {
+			dam |= b.attackedSquaresNoPin(p)
+		}
+
+		b.WhiteAttackMap = &dam
+		return dam
+	case Black:
+		if b.BlackAttackMap != nil {
+			return *b.BlackAttackMap
+		}
+
+		var dam bitmap = 0
+		for _, p := range BlackPieceTypes {
+			dam |= b.attackedSquaresNoPin(p)
+		}
+
+		b.BlackAttackMap = &dam
+		return dam
+	default:
+		panic("Unhandled Color case")
+	}
+}
+
 func (b bitmap) String() string {
 	var board string
 	var cursor bitmap = 1 << 63
@@ -392,6 +684,59 @@ func (b bitmap) String() string {
 	}
 
 	return board
+}
+
+func (b *Board) pseudoScan(start, guide bitmap, d Direction) (bitmap, bitmap) {
+	same := b.pieces(b.Turn) &^ start
+	opp := b.pieces(b.Turn.Opposite()) &^ start
+
+	var s bitmap = start
+	var passThrough bool = true
+	var pinned bitmap
+
+	var cursor bitmap = start
+	for (cursor & guide) != 0 {
+		if cursor&same != 0 {
+			break
+		}
+
+		if cursor&opp != 0 {
+			if !passThrough {
+				break
+			}
+			pinned = cursor
+			passThrough = false
+		}
+
+		s ^= cursor
+
+		switch d {
+		case N:
+			cursor <<= 8
+		case S:
+			cursor >>= 8
+		case E:
+			cursor >>= 1
+		case W:
+			cursor <<= 1
+		case NE:
+			cursor <<= 7
+		case NW:
+			cursor <<= 9
+		case SE:
+			cursor >>= 9
+		case SW:
+			cursor >>= 7
+		default:
+			panic("Unhandled direction")
+		}
+	}
+
+	if cursor != b.Pieces[b.GetPiece(b.Turn.Opposite(), "King")] {
+		pinned = 0
+	}
+
+	return s ^ (cursor & guide), pinned
 }
 
 func (b *Board) scan(start, guide bitmap, d Direction) bitmap {
@@ -424,7 +769,15 @@ func (b *Board) scan(start, guide bitmap, d Direction) bitmap {
 		}
 	}
 
-	return s ^ (cursor & guide)
+	return (s ^ (cursor & guide))
+}
+
+func (b *Board) pinnedPieces() bitmap {
+	if b.PinnedPieces != nil {
+		return *b.PinnedPieces
+	}
+
+	panic("Expected *b.PinnedPieces is non-nil")
 }
 
 // attackedSquares returns the set of currently attacked squares of given piece
@@ -457,10 +810,50 @@ func (b *Board) attackedSquares(p Piece) bitmap {
 	return attacked
 }
 
-func (b *Board) checkMoveWithCache(m *Move, c *moveCache) error {
-	if b.IsCheckmate() {
-		return fmt.Errorf("game is over")
+// attackedSquares returns the set of currently attacked squares of given piece
+func (b *Board) attackedSquaresNoPin(p Piece) bitmap {
+	pinned := b.pinnedPieces()
+
+	var attacked bitmap = 0
+	var cursor bitmap = 1
+	for i := 0; i < 64; i++ {
+		// ignore empty squares
+		if cursor&b.Pieces[p] == 0 {
+			cursor <<= 1
+			continue
+		}
+
+		// ignore pinned pieces
+		if cursor&pinned != 0 {
+			cursor <<= 1
+			continue
+		}
+
+		guide := AttackMap[p][cursor] ^ cursor
+
+		switch p {
+		case WhiteKing, BlackKing:
+			attacked |= AttackMap[p][cursor] &^ b.dynamicAttackMap(b.Turn.Opposite())
+		case WhiteKnight, BlackKnight, WhitePawn, BlackPawn:
+			attacked |= AttackMap[p][cursor]
+		case WhiteRook, BlackRook:
+			attacked |= (b.scan(cursor, guide, N) | b.scan(cursor, guide, S) | b.scan(cursor, guide, E) | b.scan(cursor, guide, W))
+		case WhiteBishop, BlackBishop:
+			attacked |= (b.scan(cursor, guide, NE) | b.scan(cursor, guide, NW) | b.scan(cursor, guide, SE) | b.scan(cursor, guide, SW))
+		case WhiteQueen, BlackQueen:
+			attacked |= (b.scan(cursor, guide, N) | b.scan(cursor, guide, S) | b.scan(cursor, guide, E) | b.scan(cursor, guide, W) | b.scan(cursor, guide, NE) | b.scan(cursor, guide, NW) | b.scan(cursor, guide, SE) | b.scan(cursor, guide, SW))
+		}
+
+		cursor <<= 1
 	}
+
+	return attacked &^ b.pieces(b.Turn)
+}
+
+func (b *Board) checkMoveWithCache(m *Move, c *moveCache) error {
+	// if b.IsCheckmate() {
+	// 	return fmt.Errorf("game is over")
+	// }
 
 	fromSquare := bitmap(m.From)
 	toSquare := bitmap(m.To)
@@ -659,15 +1052,33 @@ func (b *Board) Test(c Color) bitmap {
 }
 
 func (b *Board) allPieces() bitmap {
-	if b.AllPieces != nil {
-		return *b.AllPieces
+	return b.whitePieces() | b.blackPieces()
+}
+
+func (b *Board) whitePieces() bitmap {
+	if b.WhitePieces != nil {
+		return *b.WhitePieces
 	}
 
 	var m bitmap = 0
-	for _, p := range AllPieceTypes {
+	for _, p := range WhitePieceTypes {
 		m |= b.Pieces[p]
 	}
 
-	b.AllPieces = &m
+	b.WhitePieces = &m
+	return m
+}
+
+func (b *Board) blackPieces() bitmap {
+	if b.BlackPieces != nil {
+		return *b.BlackPieces
+	}
+
+	var m bitmap = 0
+	for _, p := range BlackPieceTypes {
+		m |= b.Pieces[p]
+	}
+
+	b.BlackPieces = &m
 	return m
 }

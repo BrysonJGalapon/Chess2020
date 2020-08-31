@@ -14,6 +14,148 @@ func newMovePromotion(c1, c2 Coordinate, p Piece) *Move {
 	return m
 }
 
+func TestCheckmate(t *testing.T) {
+	var b *Board
+
+	b = NewBoard()
+	_ = b.Move(newMove("f2", "f3"))
+	_ = b.Move(newMove("e7", "e6"))
+	_ = b.Move(newMove("g2", "g4"))
+
+	if b.IsCheckmate() {
+		t.Fatalf("Position is not checkmate, but board returns true:\n%v", b.String())
+	}
+
+	_ = b.Move(newMove("d8", "h4"))
+	if !b.IsCheckmate() {
+		t.Fatalf("Position is checkmate, but board returns false:\n%v", b.String())
+	}
+
+	/////////////////////////
+
+	b = NewBoard()
+
+	_ = b.Move(newMove("e2", "e4"))
+	_ = b.Move(newMove("e7", "e6"))
+	_ = b.Move(newMove("a2", "a3"))
+	_ = b.Move(newMove("d8", "h4"))
+	_ = b.Move(newMove("g1", "f3"))
+
+	_ = b.Move(newMove("h4", "e4"))
+	if b.IsCheckmate() {
+		t.Fatalf("Position is not checkmate (bishop or queen can block), but board returns true:\n%v", b.String())
+	}
+
+	/////////////////////////
+	b = NewBoard()
+
+	_ = b.Move(newMove("e2", "e4"))
+	_ = b.Move(newMove("e7", "e6"))
+	_ = b.Move(newMove("a2", "a3"))
+	_ = b.Move(newMove("d8", "h4"))
+	_ = b.Move(newMove("g1", "f3"))
+
+	_ = b.Move(newMove("h4", "f2"))
+	if b.IsCheckmate() {
+		t.Fatalf("Position is not checkmate (king can capture), but board returns true:\n%v", b.String())
+	}
+
+	/////////////////////////
+	b = NewBoard()
+
+	_ = b.Move(newMove("d2", "d4"))
+	_ = b.Move(newMove("e7", "e6"))
+	_ = b.Move(newMove("b1", "d2"))
+	_ = b.Move(newMove("f8", "b4"))
+	_ = b.Move(newMove("e2", "e4"))
+	_ = b.Move(newMove("d8", "h4"))
+	_ = b.Move(newMove("g1", "f3"))
+
+	_ = b.Move(newMove("h4", "e4"))
+	if b.IsCheckmate() {
+		t.Fatalf("Position is not checkmate (bishop must block), but board returns true:\n%v", b.String())
+	}
+
+	/////////////////////////
+	b = NewBoard()
+
+	_ = b.Move(newMove("d2", "d3"))
+	_ = b.Move(newMove("e7", "e6"))
+	_ = b.Move(newMove("b2", "b4"))
+	_ = b.Move(newMove("c7", "c6"))
+	_ = b.Move(newMove("g2", "g3"))
+	_ = b.Move(newMove("g7", "g6"))
+	_ = b.Move(newMove("b4", "b5"))
+	_ = b.Move(newMove("f8", "g7"))
+	_ = b.Move(newMove("c1", "a3"))
+	_ = b.Move(newMove("d8", "a5"))
+	_ = b.Move(newMove("a3", "b4"))
+	_ = b.Move(newMove("h7", "h5"))
+	_ = b.Move(newMove("f1", "h3"))
+	_ = b.Move(newMove("h8", "h7"))
+	_ = b.Move(newMove("h3", "e6"))
+	_ = b.Move(newMove("h7", "h8"))
+	_ = b.Move(newMove("e6", "b3"))
+	_ = b.Move(newMove("h8", "h7"))
+	_ = b.Move(newMove("b1", "a3"))
+	_ = b.Move(newMove("h7", "h8"))
+	_ = b.Move(newMove("c2", "c4"))
+	_ = b.Move(newMove("h8", "h7"))
+	_ = b.Move(newMove("d1", "b1"))
+	_ = b.Move(newMove("h7", "h8"))
+	_ = b.Move(newMove("g1", "h3"))
+	_ = b.Move(newMove("h8", "h7"))
+	_ = b.Move(newMove("h1", "f1"))
+	_ = b.Move(newMove("h7", "h8"))
+	_ = b.Move(newMove("b3", "d1"))
+
+	_ = b.Move(newMove("g7", "c3"))
+	if b.IsCheckmate() {
+		t.Fatalf("Position is not checkmate (bishop must capture), but board returns true:\n%v", b.String())
+	}
+
+	/////////////////////////
+	b = NewBoard()
+
+	_ = b.Move(newMove("e2", "e4"))
+	_ = b.Move(newMove("e7", "e5"))
+	_ = b.Move(newMove("g1", "f3"))
+	_ = b.Move(newMove("d7", "d6"))
+	_ = b.Move(newMove("d2", "d4"))
+	_ = b.Move(newMove("c8", "g4"))
+	_ = b.Move(newMove("d4", "e5"))
+	_ = b.Move(newMove("g4", "f3"))
+	_ = b.Move(newMove("d1", "f3"))
+	_ = b.Move(newMove("d6", "e5"))
+	_ = b.Move(newMove("f1", "c4"))
+	_ = b.Move(newMove("g8", "f6"))
+	_ = b.Move(newMove("f3", "b3"))
+	_ = b.Move(newMove("d8", "e7"))
+	_ = b.Move(newMove("b1", "c3"))
+	_ = b.Move(newMove("c7", "c6"))
+	_ = b.Move(newMove("c1", "g5"))
+	_ = b.Move(newMove("b7", "b5"))
+	_ = b.Move(newMove("c3", "b5"))
+	_ = b.Move(newMove("c6", "b5"))
+	_ = b.Move(newMove("c4", "b5"))
+	_ = b.Move(newMove("b8", "d7"))
+	_ = b.Move(newMove("e1", "c1"))
+	_ = b.Move(newMove("a8", "d8"))
+	_ = b.Move(newMove("d1", "d7"))
+	_ = b.Move(newMove("d8", "d7"))
+	_ = b.Move(newMove("h1", "d1"))
+	_ = b.Move(newMove("e7", "e6"))
+	_ = b.Move(newMove("b5", "d7"))
+	_ = b.Move(newMove("f6", "d7"))
+	_ = b.Move(newMove("b3", "b8"))
+	_ = b.Move(newMove("d7", "b8"))
+
+	_ = b.Move(newMove("d1", "d8"))
+	if !b.IsCheckmate() {
+		t.Fatalf("Position is checkmate, but board returns false:\n%v", b.String())
+	}
+}
+
 func TestMove(t *testing.T) {
 	b := NewBoard()
 
