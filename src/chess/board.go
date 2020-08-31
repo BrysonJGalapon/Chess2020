@@ -34,6 +34,17 @@ const (
 	Black = iota
 )
 
+func (c Color) String() string {
+	switch c {
+	case White:
+		return "White"
+	case Black:
+		return "Black"
+	default:
+		panic("Unhandled color type")
+	}
+}
+
 // Board is a representation of a Chess board.
 type Board struct {
 	// Pieces[0]  = White King
@@ -321,6 +332,18 @@ func (b *Board) InCheck(c Color) bool {
 	return b.dynamicAttackMap(White)&b.Pieces[BlackKing] != 0
 }
 
+// IsCheckmate returns true iff the position is checkmate
+func (b *Board) IsCheckmate() bool {
+	// TODO
+	return false
+}
+
+// IsStalemate returns true iff the position is stalemate
+func (b *Board) IsStalemate() bool {
+	// TODO
+	return false
+}
+
 func (b *Board) dynamicAttackMap(c Color) bitmap {
 	switch c {
 	case White:
@@ -435,6 +458,10 @@ func (b *Board) attackedSquares(p Piece) bitmap {
 }
 
 func (b *Board) checkMoveWithCache(m *Move, c *moveCache) error {
+	if b.IsCheckmate() {
+		return fmt.Errorf("game is over")
+	}
+
 	fromSquare := bitmap(m.From)
 	toSquare := bitmap(m.To)
 
@@ -550,6 +577,14 @@ func (b *Board) checkMoveWithCache(m *Move, c *moveCache) error {
 
 		if m.Promotion.Color() != fromPiece.Color() {
 			return fmt.Errorf("can only promote to a piece of the same color as the pawn that moved")
+		}
+
+		if fromPiece == WhitePawn && toSquare < 72057594037927936 {
+			return fmt.Errorf("white pawn can only promote on 8th rank")
+		}
+
+		if fromPiece == BlackPawn && toSquare > 128 {
+			return fmt.Errorf("black pawn can only promote on 1st rank")
 		}
 	}
 
