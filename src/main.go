@@ -3,7 +3,11 @@ package main
 import (
 	"Chess2020/src/chess"
 	"fmt"
+	"time"
 )
+
+var totalElapsed int64 = 0
+var total int64 = 0
 
 func makeMove(b *chess.Board, f, t chess.Coordinate) {
 	makeMoveUtil(b, f, t, chess.EmptyPiece)
@@ -17,7 +21,17 @@ func makeMoveUtil(b *chess.Board, f, t chess.Coordinate, promotion chess.Piece) 
 		panic(err)
 	}
 
-	b.Move(m)
+	start := time.Now().UnixNano()
+	if err = b.Move(m); err != nil {
+		panic(err)
+	}
+	time.Sleep(1 * time.Millisecond)
+	end := time.Now().UnixNano()
+
+	fmt.Printf("difference: %v\n", end-start-1000000)
+	totalElapsed += (end - start - 1000000)
+	total += 1
+
 	fmt.Println(b)
 }
 
@@ -51,5 +65,13 @@ func main() {
 	makeMove(b, "e1", "g1")
 	makeMove(b, "c8", "d7")
 	makeMove(b, "b1", "c3")
+
+	// makeMove(b, "e8", "d8")
+	// makeMove(b, "f1", "e1")
+	// makeMove(b, "d8", "e8")
+	// makeMove(b, "h2", "h3")
+
 	makeMove(b, "e8", "c8")
+
+	fmt.Println(float64(totalElapsed) / float64(total) / 1000 / 1000 / 1000)
 }

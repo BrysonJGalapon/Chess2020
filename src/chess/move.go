@@ -1,6 +1,9 @@
 package chess
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 var alphabet = "abcdefgh"
 var digits = "12345678"
@@ -25,8 +28,12 @@ type Square uint64
 
 // toCoord translates this Square into a Coordinate representation
 func (s Square) toCoord() (Coordinate, error) {
-	// TODO
-	return "", nil
+	val := int(math.Log2(float64(s)))
+
+	x := 7 - val%8
+	y := val / 8
+
+	return Coordinate(string(alphabet[x]) + string(digits[y])), nil
 }
 
 // Coordinate is a human-readable representation of a Chess square
@@ -92,4 +99,16 @@ func NewMoveCoordPromotion(f, t Coordinate, p Piece) (*Move, error) {
 	}
 
 	return NewMove(from, to, p), nil
+}
+
+func (m *Move) String() string {
+	src, _ := m.From.toCoord()
+	dst, _ := m.To.toCoord()
+
+	promotion := ""
+	if m.Promotion != EmptyPiece {
+		promotion = " = " + m.Promotion.String()
+	}
+
+	return fmt.Sprintf("%v -> %v", src, dst) + promotion
 }

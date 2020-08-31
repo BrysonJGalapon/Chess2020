@@ -4,7 +4,7 @@ import "fmt"
 
 var (
 	// AllPieceTypes a list of all supported piece types
-	AllPieceTypes = []Piece{
+	AllPieceTypes = [12]Piece{
 		WhiteKing,
 		WhiteQueen,
 		WhiteKnight,
@@ -17,6 +17,25 @@ var (
 		BlackBishop,
 		BlackRook,
 		BlackPawn,
+	}
+
+	// All supported black pieces
+	BlackPieceTypes = [6]Piece{
+		BlackKing,
+		BlackPawn,
+		BlackQueen,
+		BlackBishop,
+		BlackKnight,
+		BlackRook,
+	}
+
+	WhitePieceTypes = [6]Piece{
+		WhiteKing,
+		WhitePawn,
+		WhiteQueen,
+		WhiteBishop,
+		WhiteKnight,
+		WhiteRook,
 	}
 )
 
@@ -41,6 +60,37 @@ const (
 
 // Piece represents a Chess piece
 type Piece uint8
+
+func (p Piece) Color() Color {
+	switch p {
+	case WhiteKing:
+		return White
+	case WhiteQueen:
+		return White
+	case WhiteKnight:
+		return White
+	case WhiteBishop:
+		return White
+	case WhiteRook:
+		return White
+	case WhitePawn:
+		return White
+	case BlackKing:
+		return Black
+	case BlackQueen:
+		return Black
+	case BlackKnight:
+		return Black
+	case BlackBishop:
+		return Black
+	case BlackRook:
+		return Black
+	case BlackPawn:
+		return Black
+	default:
+		panic(fmt.Sprintf("Unhandled piece value: %d", p))
+	}
+}
 
 func (p Piece) String() string {
 	switch p {
