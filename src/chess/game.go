@@ -113,7 +113,6 @@ func (g *Game) handleMove(c Color) (*Move, error) {
 	case Black:
 		ctx, cancel := context.WithTimeout(context.Background(), g.blackTimeLeft)
 		defer cancel()
-
 		select {
 		case m := <-g.moveBlack:
 			tmp := *m
@@ -171,6 +170,12 @@ game:
 			fmt.Println()
 			fmt.Println(g.board.String())
 			log.Printf("White drew via stalemate")
+			break game
+		case g.board.InsufficientMaterial():
+			fmt.Println()
+			fmt.Println(g.board.String())
+			log.Printf("White drew via insufficient mating material")
+			break game
 		}
 
 		g.promptBlack <- Prompt{m}
@@ -194,6 +199,11 @@ game:
 			fmt.Println()
 			fmt.Println(g.board.String())
 			log.Printf("Black drew via stalemate")
+			break game
+		case g.board.InsufficientMaterial():
+			fmt.Println()
+			fmt.Println(g.board.String())
+			log.Printf("Black drew via insufficient mating material")
 			break game
 		}
 

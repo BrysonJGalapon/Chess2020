@@ -95,6 +95,8 @@ type Board struct {
 	BlackAttackMap *bitmap
 
 	PinnedPieces *bitmap
+
+	Counts [12]uint8
 }
 
 // NewBoard creates a new board, and returns it.
@@ -107,6 +109,7 @@ func NewBoard() *Board {
 		CanBlackCastleKingside:  true,
 		CanBlackCastleQueenside: true,
 		Turn:                    White,
+		Counts:                  [12]uint8{1, 1, 2, 2, 2, 8, 1, 1, 2, 2, 2, 8},
 	}
 }
 
@@ -133,6 +136,11 @@ func (b *Board) Copy() *Board {
 	if b.BlackAttackMap != nil {
 		tmp := *b.BlackAttackMap
 		nb.BlackAttackMap = &tmp
+	}
+
+	if b.PinnedPieces != nil {
+		tmp := *b.PinnedPieces
+		nb.PinnedPieces = &tmp
 	}
 
 	return &nb
@@ -257,10 +265,15 @@ func (b *Board) unsafeMoveWithCache(m *Move, c *moveCache) {
 	if m.Promotion != EmptyPiece {
 		b.Pieces[fromPiece] ^= toSquare   // remove piece from destination square
 		b.Pieces[m.Promotion] ^= toSquare // add piece to destination square
+
+		b.Counts[fromPiece]--
+		b.Counts[m.Promotion]++
 	}
 
 	// removes toPiece from existing square
 	if toPiece != EmptyPiece {
+		b.Counts[toPiece]--
+
 		var capturedSquare bitmap
 
 		capturedSquare = toSquare
@@ -330,6 +343,7 @@ func (b *Board) unsafeMoveWithCache(m *Move, c *moveCache) {
 	b.BlackPieces = nil
 	b.WhiteAttackMap = nil
 	b.BlackAttackMap = nil
+	b.PinnedPieces = nil
 
 	// toggle turn
 	b.Turn = b.Turn.Opposite()
@@ -432,7 +446,11 @@ func (b *Board) CheckingPieces() []CheckingPiece {
 
 			switch p {
 			case WhiteKnight, BlackKnight, WhitePawn, BlackPawn, WhiteKing, BlackKing:
-				attacked |= AttackMap[p][cursor]
+				att := AttackMap[p][cursor]
+				if king&att != 0 {
+					cps = append(cps, CheckingPiece{Piece: p, Square: cursor, Check: 0})
+				}
+				attacked |= att
 			case WhiteRook, BlackRook:
 				handleScan(cursor, guide, []Direction{N, S, E, W})
 			case WhiteBishop, BlackBishop:
@@ -470,10 +488,8 @@ func (b *Board) IsCheckmate() bool {
 
 	cps := b.CheckingPieces()
 
-	obstacles := b.pieces(b.Turn)
+	obstacles := b.pieces(b.Turn) &^ b.Pieces[king]
 	possible := AttackMap[king][kingSquare]
-
-	fmt.Printf("==== len(cps): %v\n", len(cps))
 
 	switch len(cps) {
 	case 1:
@@ -482,14 +498,12 @@ func (b *Board) IsCheckmate() bool {
 		// check blocks, if checking piece is not a knight
 		if cp.Piece != WhiteKnight && cp.Piece != BlackKnight {
 			if cp.Check&(b.dynamicAttackMapQueen(b.Turn)|b.dynamicAttackMapRook(b.Turn)|b.dynamicAttackMapBishop(b.Turn)|b.dynamicMovementMapPawn(b.Turn)) != 0 {
-				fmt.Println("==== I think I can block")
 				return false
 			}
 		}
 
 		// check captures, for pieces that are unpinned
 		if b.dynamicAttackMapNoPin(b.Turn)&cp.Square != 0 {
-			fmt.Println("==== I think I can capture")
 			return false
 		}
 
@@ -739,9 +753,13 @@ func (b *Board) pseudoScan(start, guide bitmap, d Direction) (bitmap, bitmap) {
 	return s ^ (cursor & guide), pinned
 }
 
-func (b *Board) scan(start, guide bitmap, d Direction) bitmap {
+func (b *Board) scanUtil(start, guide bitmap, d Direction, passThroughKing bool) bitmap {
 	obstacles := b.allPieces() ^ start
 	var s bitmap = start
+
+	if passThroughKing && b.detectPiece(start).Color() != b.Turn {
+		obstacles = obstacles &^ (b.Pieces[b.GetPiece(b.Turn, "King")])
+	}
 
 	var cursor bitmap = start
 	for (cursor&guide)&^obstacles != 0 {
@@ -770,6 +788,10 @@ func (b *Board) scan(start, guide bitmap, d Direction) bitmap {
 	}
 
 	return (s ^ (cursor & guide))
+}
+
+func (b *Board) scan(start, guide bitmap, d Direction) bitmap {
+	return b.scanUtil(start, guide, d, true)
 }
 
 func (b *Board) pinnedPieces() bitmap {
@@ -850,6 +872,50 @@ func (b *Board) attackedSquaresNoPin(p Piece) bitmap {
 	return attacked &^ b.pieces(b.Turn)
 }
 
+func arrEqual(a1, a2 [6]uint8) bool {
+	for i := 0; i < 6; i++ {
+		if a1[i] != a2[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (b *Board) InsufficientMaterial() bool {
+	var whiteCounts [6]uint8
+	var blackCounts [6]uint8
+
+	for i := 0; i < 6; i++ {
+		whiteCounts[i] = b.Counts[i]
+		blackCounts[i] = b.Counts[i+6]
+	}
+
+	if arrEqual(whiteCounts, [6]uint8{1, 0, 0, 0, 0, 0}) && arrEqual(blackCounts, [6]uint8{1, 0, 0, 0, 0, 0}) {
+		// king v king
+		return true
+	}
+
+	if arrEqual(whiteCounts, [6]uint8{1, 0, 0, 1, 0, 0}) && arrEqual(blackCounts, [6]uint8{1, 0, 0, 0, 0, 0}) ||
+		arrEqual(whiteCounts, [6]uint8{1, 0, 0, 0, 0, 0}) && arrEqual(blackCounts, [6]uint8{1, 0, 0, 1, 0, 0}) {
+		// king + bishop v king
+		return true
+	}
+
+	if arrEqual(whiteCounts, [6]uint8{1, 0, 1, 0, 0, 0}) && arrEqual(blackCounts, [6]uint8{1, 0, 0, 0, 0, 0}) ||
+		arrEqual(whiteCounts, [6]uint8{1, 0, 0, 0, 0, 0}) && arrEqual(blackCounts, [6]uint8{1, 0, 1, 0, 0, 0}) {
+		// king + knight v king
+		return true
+	}
+
+	if arrEqual(whiteCounts, [6]uint8{1, 0, 0, 1, 0, 0}) && arrEqual(blackCounts, [6]uint8{1, 0, 0, 1, 0, 0}) && ((b.Pieces[WhiteBishop]&EvenSquares != 0 && b.Pieces[BlackBishop]&EvenSquares != 0) || (b.Pieces[WhiteBishop]&OddSquares != 0 && b.Pieces[BlackBishop]&OddSquares != 0)) {
+		// king + bishop v king + bishop of same color
+		return true
+	}
+
+	return false
+}
+
 func (b *Board) checkMoveWithCache(m *Move, c *moveCache) error {
 	// if b.IsCheckmate() {
 	// 	return fmt.Errorf("game is over")
@@ -883,6 +949,10 @@ func (b *Board) checkMoveWithCache(m *Move, c *moveCache) error {
 
 	if (fromPiece == WhitePawn || fromPiece == BlackPawn) && AttackMap[fromPiece][fromSquare]&toSquare != 0 && toPiece == EmptyPiece {
 		return fmt.Errorf("pawn captures can't occur on empty squares")
+	}
+
+	if (fromPiece == WhitePawn || fromPiece == BlackPawn) && toPiece != EmptyPiece && toSquare&MoveMap[fromPiece][fromSquare] != 0 {
+		return fmt.Errorf("can't move a pawn onto a piece")
 	}
 
 	if fromSquare == toSquare {
@@ -960,7 +1030,13 @@ func (b *Board) checkMoveWithCache(m *Move, c *moveCache) error {
 
 	switch m.Promotion {
 	case EmptyPiece:
-		break // do nothing
+		if fromPiece == WhitePawn && toSquare >= 72057594037927936 {
+			return fmt.Errorf("white pawn on 8th rank has to promote to some piece")
+		}
+
+		if fromPiece == BlackPawn && toSquare <= 128 {
+			return fmt.Errorf("black pawn on 1st rank has to promote to some piece")
+		}
 	case WhitePawn, BlackPawn, WhiteKing, BlackKing:
 		return fmt.Errorf("can't promote to a pawn or king")
 	default:
@@ -1045,10 +1121,6 @@ func ray(fromSquare, toSquare bitmap) bitmap {
 	}
 
 	return r
-}
-
-func (b *Board) Test(c Color) bitmap {
-	return b.dynamicAttackMap(c)
 }
 
 func (b *Board) allPieces() bitmap {

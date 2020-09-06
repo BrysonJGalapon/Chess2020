@@ -10,6 +10,11 @@ var (
 	MoveMap [12]map[bitmap]bitmap
 )
 
+var (
+	EvenSquares bitmap = 6172840429334713770
+	OddSquares  bitmap = 12273903644374837845
+)
+
 func initBishopMaps() {
 	AttackMap[WhiteBishop] = make(map[bitmap]bitmap)
 	AttackMap[BlackBishop] = make(map[bitmap]bitmap)

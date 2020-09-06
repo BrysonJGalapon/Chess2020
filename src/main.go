@@ -2,15 +2,15 @@ package main
 
 import (
 	"Chess2020/src/chess"
-	"Chess2020/src/players/interactive"
+	"Chess2020/src/players/random"
 )
 
 func main() {
-	g := chess.NewGame(
-		interactive.Player(),
-		interactive.Player(),
-		chess.InfiniteTime{},
-	)
+	white := random.Player()
+	black := random.Player()
 
+	timeControl := chess.InfiniteTime{}
+
+	g := chess.NewGame(white, black, timeControl)
 	g.Start()
 }

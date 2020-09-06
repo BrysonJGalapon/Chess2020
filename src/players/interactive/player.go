@@ -2,15 +2,12 @@ package interactive
 
 import (
 	"Chess2020/src/chess"
+	"Chess2020/src/players/utils"
 	"bufio"
 	"fmt"
 	"os"
 	"strings"
 )
-
-var alphabet = "abcdefgh"
-var digits = "12345678"
-var pieces = "NQBRnqbr"
 
 type InteractivePlayer struct {
 	Color      chess.Color
@@ -46,12 +43,12 @@ func validateCoord(c string) error {
 	fc := c[0:1]
 	sc := c[1:2]
 
-	if !strings.Contains(alphabet, fc) {
-		return fmt.Errorf("first character must be in: %v", alphabet)
+	if !strings.Contains(utils.Alphabet, fc) {
+		return fmt.Errorf("first character must be in: %v", utils.Alphabet)
 	}
 
-	if !strings.Contains(digits, sc) {
-		return fmt.Errorf("second character must be in %v", digits)
+	if !strings.Contains(utils.Digits, sc) {
+		return fmt.Errorf("second character must be in %v", utils.Digits)
 	}
 
 	// all tests passed
@@ -60,7 +57,7 @@ func validateCoord(c string) error {
 
 func validatePromotionPiece(p string) (chess.Piece, error) {
 	if len(p) != 1 {
-		return chess.EmptyPiece, fmt.Errorf("piece must be a single character in %v", pieces)
+		return chess.EmptyPiece, fmt.Errorf("piece must be a single character in %v", utils.PromotionPieces)
 	}
 
 	switch p {
@@ -81,7 +78,7 @@ func validatePromotionPiece(p string) (chess.Piece, error) {
 	case "r":
 		return chess.BlackRook, nil
 	default:
-		return chess.EmptyPiece, fmt.Errorf("piece must be a single character in %v", pieces)
+		return chess.EmptyPiece, fmt.Errorf("piece must be a single character in %v", utils.PromotionPieces)
 	}
 }
 
